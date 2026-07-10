@@ -16,3 +16,4 @@ hf-hub = "0.5.0"
 hound = "3.5.1"
 reqwest = { version = "0.13.4", features = ["stream"] }
 dirs = "6.0.0"
+schemars = "1.2.1"

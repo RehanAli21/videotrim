@@ -1,5 +1,14 @@
 use clap::Parser;
 use hound::WavReader;
+use ollama_rs::{
+    generation::{
+        completion::request::GenerationRequest,
+        parameters::{FormatType, JsonStructure},
+    },
+    models::ModelOptions,
+    Ollama,
+};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
@@ -9,9 +18,22 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 
 #[derive(Serialize, Deserialize)]
 struct Segment {
+    start: f64,
+    end: f64,
+    text: String,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+struct EditCommand {
     start: i64,
     end: i64,
     text: String,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+struct EditPlan {
+    reasoning: String,
+    edits: Vec<EditCommand>,
 }
 
 async fn download_model(model_name: &str) -> PathBuf {
@@ -55,6 +77,10 @@ struct Args {
     /// output path to save file like ./output/editied_video.mp4
     #[arg(short, long)]
     output: String,
+
+    /// instuctions from user
+    #[arg(short, long)]
+    user_instructions: String,
 }
 
 fn extract_audio_from_video(input: &str, output: &str) -> Result<(), String> {
@@ -118,8 +144,11 @@ async fn main() {
 
     println!("Async model downloaded to: {:?}", model_path);
 
+    let mut whisper_context_parameters = WhisperContextParameters::default();
+    whisper_context_parameters.use_gpu(true);
+
     // load a context and model
-    let ctx = WhisperContext::new_with_params(model_path, WhisperContextParameters::default())
+    let ctx = WhisperContext::new_with_params(model_path, whisper_context_parameters)
         .expect("failed to load model");
 
     // create a params object
@@ -154,24 +183,120 @@ async fn main() {
 
     let mut segments: Vec<Segment> = vec![];
 
-    // fetch the results
+    //  fetch the results
     for segment in state.as_iter() {
         segments.push(Segment {
-            start: segment.start_timestamp(),
-            end: segment.end_timestamp(),
+            start: segment.start_timestamp() as f64 / 100.0,
+            end: segment.end_timestamp() as f64 / 100.0,
             text: segment.to_string(),
         });
-        println!(
-            "[{} - {}]: {}",
-            // note start and end timestamps are in centiseconds
-            // (10s of milliseconds)
-            segment.start_timestamp(),
-            segment.end_timestamp(),
-            // the Display impl for WhisperSegment will replace invalid UTF-8 with the Unicode replacement character
-            segment
-        );
+        //println!(
+        //   "[{} - {}]: {}",
+        // note start and end timestamps are in centiseconds
+        // (10s of milliseconds)
+        //   segment.start_timestamp(),
+        //   segment.end_timestamp(),
+        //     the Display impl for WhisperSegment will replace invalid UTF-8 with the Unicode replacement character
+        //  segment
+        //);
     }
 
     let json = serde_json::to_string_pretty(&segments).unwrap();
-    fs::write("transcript.json", json).unwrap();
+    fs::write("transcript.json", &json).unwrap();
+
+    let transcript = json;
+
+    //println!("{}", transcript);
+    let ollama = Ollama::default();
+
+    let model = "qwen2.5:7b".to_string();
+
+    let prompt = format!(
+        "You are a video editor. Below is a transcript with timestamps in seconds.\n\
+        Identify segments to CUT: filler words (um, uh, like), long silences, \
+        repeated sentences, false starts, and off-topic rambling.\n\n\
+        Additional instructions from the user:\n{}\n\n\
+        Return a JSON object with an \"edits\" array. Each edit has:\n\
+        - \"cut_from\": start time in seconds (number)\n\
+        - \"cut_to\": end time in seconds (number)\n\
+        - \"reason\": why it should be cut (string)\n\n\
+        Example: {{\"edits\": [{{\"cut_from\": 2.5, \"cut_to\": 4.0, \"reason\": \"filler word um\"}}]}}\n\n\
+        Transcript:\n{}",
+        &args.user_instructions,
+        transcript
+    );
+
+    /*let prompt = format!(
+        "You are a video editing assistant. Follow the user's instruction below as your primary task.\n\n\
+         USER INSTRUCTION (follow this above all else):\n{}\n\n\
+         The transcript below has timestamps in SECONDS, one line per segment as: [start - end] text\n\n\
+         STEP 1 — In the \"reasoning\" field, go segment by segment and note the time ranges that match \
+         the user instruction. State where each matching topic STARTS and ENDS using the timestamps.\n\n\
+         STEP 2 — In the \"edits\" array, output the ranges to REMOVE. If a topic spans several consecutive \
+         lines, MERGE them into ONE edit whose cut_from is the first line's start and cut_to is the last line's end.\n\n\
+         Each edit: cut_from (seconds, number), cut_to (seconds, number), reason (string).\n\n\
+         Transcript:\n{}",
+        args.user_instructions,
+        transcript
+    );
+        let prompt = format!(
+        "You are a video editor. Below is a transcript with timestamps in seconds.\n\
+         Identify segments to CUT: filler words (um, uh, like), long silences, \
+         repeated sentences, false starts, and off-topic rambling.\n\n\
+         Return a JSON object with an \"edits\" array. Each edit has:\n\
+         - \"cut_from\": start time in seconds (number)\n\
+         - \"cut_to\": end time in seconds (number)\n\
+         - \"reason\": why it should be cut (string)\n\n\
+         Example: {{\"edits\": [{{\"cut_from\": 2.5, \"cut_to\": 4.0, \"reason\": \"filler word um\"}}]}}\n\n\
+         Instructions from superwiser that you have to follow:\n{}\n
+         Transcript:\n{}",
+         &args.user_instructions,
+        transcript
+        );*/
+
+    println!("{}", prompt);
+
+    //let format = FormatType::StructuredJson(Box::new(JsonStructure::new::<EditPlan>()));
+
+    //let options = ModelOptions::default().temperature(0.0);
+    //let request = GenerationRequest::new(model, prompt)
+    //  .format(format)
+    //   .options(options);
+
+    //let res = ollama.generate(request).await;
+
+    //let response = match res {
+    // Ok(r) => r.response,
+    //  Err(err) => panic!("Err in getting response. err => {}", err),
+    //};
+
+    //let plan: EditPlan = match serde_json::from_str(&response) {
+    //   Ok(json) => json,
+    //    Err(err) => panic!("Err on converting to json. err => {}", err),
+    //};
+
+    //println!("{:#?}", plan);
+
+    //let prompt = format!("You are a video editor. Tell me what is best for videos");
+
+    let format = FormatType::StructuredJson(Box::new(JsonStructure::new::<EditPlan>()));
+
+    let options = ModelOptions::default().temperature(0.0);
+    let request = GenerationRequest::new(model, prompt)
+        .format(format)
+        .options(options);
+
+    let res = ollama.generate(request).await;
+
+    let response = match res {
+        Ok(r) => r.response,
+        Err(err) => panic!("Err in getting response. err => {}", err),
+    };
+
+    let plan: EditPlan = match serde_json::from_str(&response) {
+        Ok(json) => json,
+        Err(err) => panic!("Err on converting to json. err => {}", err),
+    };
+
+    println!("{:#?}", plan);
 }

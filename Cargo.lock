@@ -1716,6 +1716,7 @@ dependencies = [
  "indicatif",
  "ollama-rs",
  "reqwest 0.13.4",
+ "schemars",
  "serde",
  "serde_json",
  "tokio",
