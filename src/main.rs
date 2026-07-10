@@ -23,10 +23,10 @@ struct Segment {
     text: String,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 struct EditCommand {
-    start: i64,
-    end: i64,
+    start: f64,
+    end: f64,
     text: String,
 }
 
@@ -101,44 +101,39 @@ fn extract_audio_from_video(input: &str, output: &str) -> Result<(), String> {
         .map_err(|e| format!("Failed to run ffmpeg: {}", e))?;
 
     if status.success() {
+        println!("{:#?}", status);
         Ok(())
     } else {
         Err("FFmpeg failed".to_string())
     }
 }
 
-fn read_audio(path: &str) -> Vec<f32> {
+fn read_audio(path: &str) -> (Vec<f32>, f64) {
     let mut reader = WavReader::open(path).expect("Failed to open WAV file");
+    let spec = reader.spec();
 
-    reader
+    let samples: Vec<f32> = reader
         .samples::<i16>() // read raw samples as i16 (16-bit integers)
         .map(|s| s.unwrap() as f32 / 32768.0) // convert to f32 between -1.0 and 1.0
-        .collect()
+        .collect();
+
+    // duration formula = number of samples / (sample rate * channels)
+    let duration = samples.len() as f64 / (spec.sample_rate as f64 * spec.channels as f64);
+
+    (samples, duration)
 }
 
 #[tokio::main]
 async fn main() {
+    const AUDIOFILE: &str = "audio.wav";
     let args = Args::parse();
 
     println!("input path: {}", args.input);
     println!("output path: {}", args.output);
 
-    let response = extract_audio_from_video(&args.input, &args.output);
+    let response = extract_audio_from_video(&args.input, AUDIOFILE);
 
     println!("{:#?}", response);
-
-    /*let api = match ApiBuilder::new().build() {
-        Ok(api) => api,
-        Err(err) => panic!("error in building api: {err}"),
-    };
-
-    let repo = api.model("ggerganov/whisper-small.en".to_string());
-
-    // Asynchronously fetch the file
-    let model_path = match repo.get("ggml-small.en.bin").await {
-        Ok(path) => path,
-        Err(err) => panic!("Can't get whisper model path, err : {err}"),
-    };*/
 
     let model_path = download_model("small.en").await;
 
@@ -173,7 +168,7 @@ async fn main() {
     // Temperature — 0.0 is most deterministic (default is already 0.0)
     params.set_temperature(0.0);
 
-    let audio_data = read_audio(&args.output);
+    let (audio_data, total_duration) = read_audio(AUDIOFILE);
 
     // now we can run the model
     let mut state = ctx.create_state().expect("failed to create state");
@@ -190,15 +185,6 @@ async fn main() {
             end: segment.end_timestamp() as f64 / 100.0,
             text: segment.to_string(),
         });
-        //println!(
-        //   "[{} - {}]: {}",
-        // note start and end timestamps are in centiseconds
-        // (10s of milliseconds)
-        //   segment.start_timestamp(),
-        //   segment.end_timestamp(),
-        //     the Display impl for WhisperSegment will replace invalid UTF-8 with the Unicode replacement character
-        //  segment
-        //);
     }
 
     let json = serde_json::to_string_pretty(&segments).unwrap();
@@ -226,58 +212,7 @@ async fn main() {
         transcript
     );
 
-    /*let prompt = format!(
-        "You are a video editing assistant. Follow the user's instruction below as your primary task.\n\n\
-         USER INSTRUCTION (follow this above all else):\n{}\n\n\
-         The transcript below has timestamps in SECONDS, one line per segment as: [start - end] text\n\n\
-         STEP 1 — In the \"reasoning\" field, go segment by segment and note the time ranges that match \
-         the user instruction. State where each matching topic STARTS and ENDS using the timestamps.\n\n\
-         STEP 2 — In the \"edits\" array, output the ranges to REMOVE. If a topic spans several consecutive \
-         lines, MERGE them into ONE edit whose cut_from is the first line's start and cut_to is the last line's end.\n\n\
-         Each edit: cut_from (seconds, number), cut_to (seconds, number), reason (string).\n\n\
-         Transcript:\n{}",
-        args.user_instructions,
-        transcript
-    );
-        let prompt = format!(
-        "You are a video editor. Below is a transcript with timestamps in seconds.\n\
-         Identify segments to CUT: filler words (um, uh, like), long silences, \
-         repeated sentences, false starts, and off-topic rambling.\n\n\
-         Return a JSON object with an \"edits\" array. Each edit has:\n\
-         - \"cut_from\": start time in seconds (number)\n\
-         - \"cut_to\": end time in seconds (number)\n\
-         - \"reason\": why it should be cut (string)\n\n\
-         Example: {{\"edits\": [{{\"cut_from\": 2.5, \"cut_to\": 4.0, \"reason\": \"filler word um\"}}]}}\n\n\
-         Instructions from superwiser that you have to follow:\n{}\n
-         Transcript:\n{}",
-         &args.user_instructions,
-        transcript
-        );*/
-
     println!("{}", prompt);
-
-    //let format = FormatType::StructuredJson(Box::new(JsonStructure::new::<EditPlan>()));
-
-    //let options = ModelOptions::default().temperature(0.0);
-    //let request = GenerationRequest::new(model, prompt)
-    //  .format(format)
-    //   .options(options);
-
-    //let res = ollama.generate(request).await;
-
-    //let response = match res {
-    // Ok(r) => r.response,
-    //  Err(err) => panic!("Err in getting response. err => {}", err),
-    //};
-
-    //let plan: EditPlan = match serde_json::from_str(&response) {
-    //   Ok(json) => json,
-    //    Err(err) => panic!("Err on converting to json. err => {}", err),
-    //};
-
-    //println!("{:#?}", plan);
-
-    //let prompt = format!("You are a video editor. Tell me what is best for videos");
 
     let format = FormatType::StructuredJson(Box::new(JsonStructure::new::<EditPlan>()));
 
@@ -299,4 +234,129 @@ async fn main() {
     };
 
     println!("{:#?}", plan);
+
+    let (parts_to_keep, parts_to_cut) = cuts_and_keeps(&plan.edits, total_duration);
+
+    let _ = cut_video(&args.input, &parts_to_keep, &parts_to_cut, &args.output);
+}
+
+type CutsAndKeepsType = (Vec<(f64, f64)>, Vec<(f64, f64)>);
+
+fn cuts_and_keeps(cuts: &[EditCommand], total_duration: f64) -> CutsAndKeepsType {
+    let mut parts_to_keep: Vec<(f64, f64)> = vec![];
+    let mut parts_to_cut: Vec<(f64, f64)> = vec![];
+
+    let mut cursor: f64 = 0.0;
+
+    // sort cuts by start time first (LLM may return them out of order)
+    let mut sorted = cuts.to_vec();
+    sorted.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap());
+
+    for cut in sorted {
+        parts_to_cut.push((cut.start, cut.end));
+
+        if cut.start > cursor {
+            parts_to_keep.push((cursor, cut.start))
+        }
+
+        cursor = cursor.max(cut.end);
+    }
+
+    if cursor < total_duration {
+        parts_to_keep.push((cursor, total_duration));
+    }
+
+    (parts_to_keep, parts_to_cut)
+}
+
+fn cut_video(
+    input: &str,
+    parts_to_keep: &[(f64, f64)],
+    parts_to_cut: &[(f64, f64)],
+    output: &str,
+) -> Result<(), String> {
+    let parts_to_keep_dir = "used_clips";
+    let parts_to_cut_dir = "removed_clips";
+
+    let _ = fs::create_dir_all(parts_to_keep_dir).map_err(|e| e.to_string());
+
+    let _ = fs::create_dir_all(parts_to_cut_dir).map_err(|e| e.to_string());
+
+    for (i, (start, end)) in parts_to_cut.iter().enumerate() {
+        let clip = format!("{}/clip_{:03}.mp4", parts_to_cut_dir, i);
+        let duration = end - start;
+
+        let status = Command::new("ffmpeg")
+            .args([
+                "-ss",
+                &start.to_string(), // seek to start
+                "-i",
+                input,
+                "-t",
+                &duration.to_string(), // keep this many seconds
+                "-c",
+                "copy", // stream copy = no re-encode (fast)
+                "-y",   // overwrite if exists
+                &clip,
+            ])
+            .status()
+            .map_err(|err| err.to_string())?;
+
+        if !status.success() {
+            return Err(format!("Failed to extract clip {}", i));
+        }
+    }
+
+    let mut keep_clip_paths = vec![];
+
+    // saving each keep clip using it's range
+    for (i, (start, end)) in parts_to_keep.iter().enumerate() {
+        let clip = format!("{}/clip_{:03}.mp4", parts_to_keep_dir, i);
+        let duration = end - start;
+
+        let status = Command::new("ffmpeg")
+            .args([
+                "-ss",
+                &start.to_string(), // seek to start
+                "-i",
+                input,
+                "-t",
+                &duration.to_string(), // keep this many seconds
+                "-c",
+                "copy", // stream copy = no re-encode (fast)
+                "-y",   // overwrite if exists
+                &clip,
+            ])
+            .status()
+            .map_err(|err| err.to_string())?;
+
+        if !status.success() {
+            return Err(format!("Failed to extract clip {}", i));
+        }
+
+        keep_clip_paths.push(clip);
+    }
+
+    // write a list for concating (ffmpeg needs this format)
+    let list_path = format!("{}/list.txt", parts_to_keep_dir);
+    let list_content: String = keep_clip_paths
+        .iter()
+        .map(|p| format!("file '{}'\n", p.replace(parts_to_keep_dir, ".")))
+        .collect();
+
+    fs::write(&list_path, list_content).map_err(|e| e.to_string())?;
+
+    //concat all clips into on video
+    let status = Command::new("ffmpeg")
+        .args([
+            "-f", "concat", "-safe", "0", "-i", &list_path, "-c", "copy", "-y", output,
+        ])
+        .status()
+        .map_err(|e| e.to_string())?;
+
+    if !status.success() {
+        return Err("Failed to join clips".to_string());
+    }
+
+    Ok(())
 }
