@@ -131,6 +131,13 @@ async fn main() {
     println!("input path: {}", args.input);
     println!("output path: {}", args.output);
 
+    let file_extension = match &args.input.rsplit_once(".") {
+        Some((_, extension)) => extension.to_string(),
+        None => panic!("Can't get file extension."),
+    };
+
+    println!("{:?}", file_extension);
+
     let response = extract_audio_from_video(&args.input, AUDIOFILE);
 
     println!("{:#?}", response);
@@ -237,7 +244,13 @@ async fn main() {
 
     let (parts_to_keep, parts_to_cut) = cuts_and_keeps(&plan.edits, total_duration);
 
-    let _ = cut_video(&args.input, &parts_to_keep, &parts_to_cut, &args.output);
+    let _ = cut_video(
+        &args.input,
+        &parts_to_keep,
+        &parts_to_cut,
+        &args.output,
+        &file_extension,
+    );
 }
 
 type CutsAndKeepsType = (Vec<(f64, f64)>, Vec<(f64, f64)>);
@@ -274,6 +287,7 @@ fn cut_video(
     parts_to_keep: &[(f64, f64)],
     parts_to_cut: &[(f64, f64)],
     output: &str,
+    file_extension: &str,
 ) -> Result<(), String> {
     let parts_to_keep_dir = "used_clips";
     let parts_to_cut_dir = "removed_clips";
@@ -283,7 +297,7 @@ fn cut_video(
     let _ = fs::create_dir_all(parts_to_cut_dir).map_err(|e| e.to_string());
 
     for (i, (start, end)) in parts_to_cut.iter().enumerate() {
-        let clip = format!("{}/clip_{:03}.mp4", parts_to_cut_dir, i);
+        let clip = format!("{}/clip_{:03}.{}", parts_to_cut_dir, i, file_extension);
         let duration = end - start;
 
         let status = Command::new("ffmpeg")
@@ -311,7 +325,7 @@ fn cut_video(
 
     // saving each keep clip using it's range
     for (i, (start, end)) in parts_to_keep.iter().enumerate() {
-        let clip = format!("{}/clip_{:03}.mp4", parts_to_keep_dir, i);
+        let clip = format!("{}/clip_{:03}.{}", parts_to_keep_dir, i, file_extension);
         let duration = end - start;
 
         let status = Command::new("ffmpeg")
