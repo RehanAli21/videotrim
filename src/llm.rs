@@ -9,12 +9,11 @@ use ollama_rs::{
 };
 
 pub async fn get_plan_from_model(
+    model: &str,
     user_instructions: &str,
     transcript: &str,
 ) -> Result<EditPlan, String> {
     let ollama = Ollama::default();
-
-    let model = "qwen2.5:7b".to_string();
 
     let prompt = format!(
         "You are a video editor. Below is a transcript with timestamps in seconds.\n\
@@ -34,7 +33,7 @@ pub async fn get_plan_from_model(
     let format = FormatType::StructuredJson(Box::new(JsonStructure::new::<EditPlan>()));
 
     let options = ModelOptions::default().temperature(0.0);
-    let request = GenerationRequest::new(model, prompt)
+    let request = GenerationRequest::new(model.to_string(), prompt)
         .format(format)
         .options(options);
 

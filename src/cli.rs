@@ -12,6 +12,14 @@ pub struct Args {
     pub output: String,
 
     /// instuctions from user
-    #[arg(short, long)]
+    #[arg(long)]
     pub user_instructions: String,
+
+    /// model name for whisper
+    #[arg(long)]
+    pub whisper_model: String,
+
+    /// model name for ollama
+    #[arg(long)]
+    pub ollama_model: String,
 }

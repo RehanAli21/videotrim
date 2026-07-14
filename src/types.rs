@@ -20,3 +20,10 @@ pub struct EditPlan {
     pub reasoning: String,
     pub edits: Vec<EditCommand>,
 }
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+pub struct TimelineSegment {
+    pub index: usize,
+    pub start: f64,
+    pub end: f64,
+}
