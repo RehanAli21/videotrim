@@ -22,4 +22,7 @@ pub struct Args {
     /// model name for ollama
     #[arg(long)]
     pub ollama_model: String,
+
+    #[arg(short = 'r', long)]
+    pub show_reasons: bool,
 }

@@ -5,7 +5,11 @@ use std::process::Command;
 
 type CutsAndKeepsType = (Vec<TimelineSegment>, Vec<TimelineSegment>);
 
-pub fn cuts_and_keeps(cuts: &[EditCommand], total_duration: f64) -> CutsAndKeepsType {
+pub fn cuts_and_keeps(
+    cuts: &[EditCommand],
+    total_duration: f64,
+    show_reasoning: bool,
+) -> CutsAndKeepsType {
     let mut parts_to_keep: Vec<TimelineSegment> = vec![];
     let mut parts_to_cut: Vec<TimelineSegment> = vec![];
 
@@ -30,6 +34,10 @@ pub fn cuts_and_keeps(cuts: &[EditCommand], total_duration: f64) -> CutsAndKeeps
             start: cut.start,
             end: cut.end,
         });
+
+        if show_reasoning {
+            println!("Removing Clip {}, reason: {}", index, cut.reason);
+        }
         index += 1;
 
         cursor = cursor.max(cut.end);
@@ -46,7 +54,7 @@ pub fn cuts_and_keeps(cuts: &[EditCommand], total_duration: f64) -> CutsAndKeeps
     (parts_to_keep, parts_to_cut)
 }
 
-pub fn cut_video(
+pub fn process_video(
     input: &str,
     parts_to_keep: &[TimelineSegment],
     parts_to_cut: &[TimelineSegment],

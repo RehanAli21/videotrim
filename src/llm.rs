@@ -21,10 +21,11 @@ pub async fn get_plan_from_model(
         repeated sentences, false starts, and off-topic rambling.\n\n\
         Additional instructions from the user:\n{}\n\n\
         Return a JSON object with an \"edits\" array. Each edit has:\n\
-        - \"cut_from\": start time in seconds (number)\n\
-        - \"cut_to\": end time in seconds (number)\n\
+        - \"start\": start time in seconds (number)\n\
+        - \"end\": end time in seconds (number)\n\
         - \"reason\": why it should be cut (string)\n\n\
-        Example: {{\"edits\": [{{\"cut_from\": 2.5, \"cut_to\": 4.0, \"reason\": \"filler word um\"}}]}}\n\n\
+        - \"text\": Whatever text in the segment (string)\n\n\
+        Example: {{\"edits\": [{{\"start\": 2.5, \"end\": 4.0, \"reason\": \"filler word um\", \"text\":\"segment text\"}}]}}\n\n\
         Transcript:\n{}",
         user_instructions,
         transcript

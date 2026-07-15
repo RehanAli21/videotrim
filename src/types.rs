@@ -12,6 +12,7 @@ pub struct Segment {
 pub struct EditCommand {
     pub start: f64,
     pub end: f64,
+    pub reason: String,
     pub text: String,
 }
 

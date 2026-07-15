@@ -24,7 +24,10 @@ async fn main() {
         None => panic!("Can't get file extension."),
     };
 
-    let _ = audio::extract_audio_from_video(&args.input, &audio_file);
+    match audio::extract_audio_from_video(&args.input, &audio_file) {
+        Ok(_) => {}
+        Err(err) => panic!("Error on extraction audio from video, err => {err}"),
+    };
 
     let (audio_data, total_duration) = audio::read_audio(&audio_file);
 
@@ -54,13 +57,27 @@ async fn main() {
             Err(err) => panic!("failed to get plan from ollama model, err => {err}"),
         };
 
-    let (parts_to_keep, parts_to_cut) = editor::cuts_and_keeps(&plan.edits, total_duration);
+    if plan.edits.is_empty() {
+        let reason = plan.reasoning;
+        panic!(
+            "AI Model did not create any editing for the video, reasoning of the model: {reason}"
+        );
+    }
 
-    let _ = editor::cut_video(
+    let (parts_to_keep, parts_to_cut) =
+        editor::cuts_and_keeps(&plan.edits, total_duration, args.show_reasons);
+
+    match editor::process_video(
         &args.input,
         &parts_to_keep,
         &parts_to_cut,
         &args.output,
         &file_extension,
-    );
+    ) {
+        Ok(_) => println!(
+            "Your files are creating and can be found at {}",
+            &args.output
+        ),
+        Err(err) => println!("Error on video processing, err => {}", err),
+    };
 }
