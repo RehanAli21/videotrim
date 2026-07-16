@@ -75,7 +75,7 @@ pub fn process_video(
         );
         let duration = segment.end - segment.start;
 
-        let status = Command::new("ffmpeg")
+        let cmd_output = Command::new("ffmpeg")
             .args([
                 "-ss",
                 &segment.start.to_string(), // seek to start
@@ -88,10 +88,10 @@ pub fn process_video(
                 "-y",   // overwrite if exists
                 &clip,
             ])
-            .status()
+            .output()
             .map_err(|err| err.to_string())?;
 
-        if !status.success() {
+        if !cmd_output.status.success() {
             return Err(format!("Failed to extract clip {}", segment.index));
         }
     }
@@ -106,7 +106,7 @@ pub fn process_video(
         );
         let duration = segment.end - segment.start;
 
-        let status = Command::new("ffmpeg")
+        let cmd_output = Command::new("ffmpeg")
             .args([
                 "-ss",
                 &segment.start.to_string(), // seek to start
@@ -119,10 +119,10 @@ pub fn process_video(
                 "-y",   // overwrite if exists
                 &clip,
             ])
-            .status()
+            .output()
             .map_err(|err| err.to_string())?;
 
-        if !status.success() {
+        if !cmd_output.status.success() {
             return Err(format!("Failed to extract clip {}", segment.index));
         }
 
@@ -141,7 +141,7 @@ pub fn process_video(
     let file_output_path = format!("{output}/edited_video.{file_extension}");
 
     //concat all clips into on video
-    let status = Command::new("ffmpeg")
+    let cmd_output = Command::new("ffmpeg")
         .args([
             "-f",
             "concat",
@@ -154,10 +154,10 @@ pub fn process_video(
             "-y",
             &file_output_path,
         ])
-        .status()
+        .output()
         .map_err(|e| e.to_string())?;
 
-    if !status.success() {
+    if !cmd_output.status.success() {
         return Err("Failed to join clips".to_string());
     }
 

@@ -5,6 +5,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::result::Result;
 
+use whisper_rs::install_logging_hooks;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 pub struct Transcribe {
@@ -13,7 +14,9 @@ pub struct Transcribe {
 
 impl Transcribe {
     async fn download_model(model_name: &str) -> PathBuf {
-        let model_dir = dirs::cache_dir().unwrap().join("rust-video-editor");
+        let model_dir = dirs::cache_dir()
+            .unwrap()
+            .join("videotrim_rust_cli_whisper_model");
 
         fs::create_dir_all(&model_dir).unwrap();
 
@@ -49,6 +52,8 @@ impl Transcribe {
 
         println!("Async model downloaded to: {:?}", model_path);
 
+        install_logging_hooks();
+
         let mut whisper_context_parameters = WhisperContextParameters::default();
         whisper_context_parameters.use_gpu(true);
 
@@ -70,7 +75,7 @@ impl Transcribe {
         // Language — defaults to "en" already, but explicit is better
         params.set_language(Some("en"));
         // Timestamps — critical for project as we need timestaps
-        params.set_token_timestamps(true);
+        params.set_token_timestamps(false);
         // Don't print whisper's internal progress to terminal
         params.set_print_progress(false);
         params.set_print_realtime(false);

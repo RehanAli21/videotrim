@@ -2,8 +2,9 @@ use hound::WavReader;
 use std::process::Command;
 
 pub fn extract_audio_from_video(input: &str, output: &str) -> Result<(), String> {
-    let status = Command::new("ffmpeg")
+    let cmd_output = Command::new("ffmpeg")
         .args([
+            "-y",
             "-i",
             input,
             "-vn",
@@ -15,11 +16,10 @@ pub fn extract_audio_from_video(input: &str, output: &str) -> Result<(), String>
             "1",
             output,
         ])
-        .status()
+        .output()
         .map_err(|e| format!("Failed to run ffmpeg: {}", e))?;
 
-    if status.success() {
-        println!("{:#?}", status);
+    if cmd_output.status.success() {
         Ok(())
     } else {
         Err("FFmpeg failed".to_string())
