@@ -112,7 +112,7 @@ impl Transcribe {
                 return Err(format!(
                     "failed to convert segments in json string, err => {}",
                     err
-                ))
+                ));
             }
         };
 

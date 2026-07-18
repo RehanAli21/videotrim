@@ -1,11 +1,11 @@
 use crate::EditPlan;
 use ollama_rs::{
+    Ollama,
     generation::{
         completion::request::GenerationRequest,
         parameters::{FormatType, JsonStructure},
     },
     models::ModelOptions,
-    Ollama,
 };
 
 pub async fn get_plan_from_model(
@@ -27,8 +27,7 @@ pub async fn get_plan_from_model(
         - \"text\": Whatever text in the segment (string)\n\n\
         Example: {{\"edits\": [{{\"start\": 2.5, \"end\": 4.0, \"reason\": \"filler word um\", \"text\":\"segment text\"}}]}}\n\n\
         Transcript:\n{}",
-        user_instructions,
-        transcript
+        user_instructions, transcript
     );
 
     let format = FormatType::StructuredJson(Box::new(JsonStructure::new::<EditPlan>()));
@@ -46,7 +45,7 @@ pub async fn get_plan_from_model(
             return Err(format!(
                 "Err in getting response from ollama generate. err => {}",
                 err
-            ))
+            ));
         }
     };
 
@@ -56,7 +55,7 @@ pub async fn get_plan_from_model(
             return Err(format!(
                 "Err on converting ollama response to json. err => {}",
                 err
-            ))
+            ));
         }
     };
 
