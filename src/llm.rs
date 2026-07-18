@@ -1,11 +1,11 @@
 use crate::EditPlan;
 use ollama_rs::{
+    Ollama,
     generation::{
         completion::request::GenerationRequest,
         parameters::{FormatType, JsonStructure},
     },
     models::ModelOptions,
-    Ollama,
 };
 
 pub async fn get_plan_from_model(

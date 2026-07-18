@@ -1,8 +1,8 @@
 mod cli;
 use cli::Args;
 
-use videotrim::transcibe::Transcribe;
 use videotrim::ProgressSpinner;
+use videotrim::transcibe::Transcribe;
 use videotrim::{audio, editor, llm};
 
 use clap::Parser;
