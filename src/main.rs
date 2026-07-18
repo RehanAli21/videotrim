@@ -53,7 +53,7 @@ async fn main() {
     };
 
     //saving transciption in a file to check later
-    match fs::write(format!("{}/transcript.json", &args.output), &json) {
+    match fs::write(format!("{}/transcript.json", args.output), &json) {
         Ok(_) => (),
         Err(err) => panic!("failed to save treancription in file, err => {err}"),
     };
@@ -100,7 +100,7 @@ async fn main() {
     ) {
         Ok(_) => spinner.finish(format!(
             "Your files are created and can be found at {}",
-            &args.output
+            args.output
         )),
         Err(err) => spinner.finish(format!("Error on video processing, err => {}", err)),
     };
