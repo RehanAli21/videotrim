@@ -18,7 +18,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang libclang-dev cmake pkr-config libssl-dev
+          sudo apt-get install -y clang libclang-dev cmake pkg-config libssl-dev
 
       - name: Build release binary
         run: cargo build --release
