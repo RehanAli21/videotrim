@@ -24,7 +24,7 @@ jobs:
         run: cargo build --release
 
       - name: Archive binary
-        run: tar -csf videotrim-x86_64-linux.tar.gz -C target/release videotrim
+        run: tar -czf videotrim-x86_64-linux.tar.gz -C target/release videotrim
 
       - name: Create release and upload binary
         env:
