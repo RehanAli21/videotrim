@@ -130,7 +130,7 @@ pub fn process_video(
     }
 
     // write a list for concating (ffmpeg needs this format)
-    let list_path = format!("{}/list.txt", &parts_to_keep_dir);
+    let list_path = format!("{}/list.txt", parts_to_keep_dir);
     let list_content: String = keep_clip_paths
         .iter()
         .map(|p| format!("file '{}'\n", p.replace(&parts_to_keep_dir, ".")))
